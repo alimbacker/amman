@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { whatsappLink, type Lang } from '@temple/shared';
 import { usePrefs } from '@/lib/prefs';
 import { useTemple } from '@/lib/data';
+import { useAuth } from '@/lib/auth';
 import { IconCalendar, IconHelp, IconHome, IconPhone, IconSettings, IconTicket, IconWhatsApp, TempleMark } from './icons';
 
 export function Logo({ size = 44 }: { size?: number }) {
@@ -46,6 +47,7 @@ const nav = [
 function Header() {
   const { t, tr } = usePrefs();
   const { settings } = useTemple();
+  const { user } = useAuth();
   const path = usePathname();
   return (
     <header className="sticky top-0 z-30 bg-gradient-to-b from-maroon to-maroon-700 text-cream shadow-lg">
@@ -66,7 +68,9 @@ function Header() {
               {t(key)}
             </Link>
           ))}
-          <Link href="/settings" aria-label={t('settings')} className="rounded-full p-2.5 text-cream/90 hover:bg-cream/10"><IconSettings /></Link>
+          <Link href="/settings" aria-label={t('settings')} title={user?.email ?? ''} className="flex items-center gap-2 rounded-full py-2 pl-3 pr-2.5 text-cream/90 hover:bg-cream/10">
+            <span className="max-w-[9rem] truncate text-[0.95rem] font-semibold">{user?.displayName || t('account')}</span><IconSettings />
+          </Link>
         </nav>
         <LangToggle className="ml-auto shrink-0 xl:ml-2" />
         <Link href="/settings" aria-label={t('settings')} className="-mr-1 rounded-full p-2 text-cream/90 xl:hidden"><IconSettings /></Link>
@@ -128,7 +132,7 @@ function Footer() {
 }
 
 /** Splash + first-visit language selection (screens 1 & 2). */
-function LanguageGate() {
+export function LanguageGate() {
   const { langChosen, setLang } = usePrefs();
   const { settings } = useTemple();
   const [show, setShow] = useState(false);

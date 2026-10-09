@@ -1,6 +1,9 @@
 'use client';
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signOut, onAuthStateChanged, connectAuthEmulator, type Auth, type User } from 'firebase/auth';
+import {
+  getAuth, onAuthStateChanged, connectAuthEmulator, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  sendPasswordResetEmail, updateProfile, signOut, type Auth, type User,
+} from 'firebase/auth';
 import {
   initializeFirestore,
   persistentLocalCache,
@@ -9,7 +12,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable, connectFunctionsEmulator, type Functions } from 'firebase/functions';
-import { FUNCTIONS_REGION, errorMessages, t, type BookingErrorCode, type Lang } from '@temple/shared';
+import { FUNCTIONS_REGION, errorMessages, t, type BookingErrorCode, type Lang, type StringKey } from '@temple/shared';
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -60,31 +63,66 @@ export function getDb(): Firestore {
   return db;
 }
 
-let userPromise: Promise<User> | null = null;
-/** Devotees never create accounts — each device gets a silent anonymous identity. */
-export function ensureUser(): Promise<User> {
+/* ------------------------------ customer accounts (email + password) ------------------------------ */
+
+/** Subscribe to the signed-in devotee. Anonymous sessions left over from the old app are signed out. */
+export function onUser(cb: (u: User | null) => void): () => void {
   init();
-  if (!userPromise) {
-    userPromise = new Promise<User>((resolve, reject) => {
-      const unsub = onAuthStateChanged(auth, async (u) => {
-        unsub();
-        try {
-          resolve(u ?? (await signInAnonymously(auth)).user);
-        } catch (e) {
-          userPromise = null;
-          reject(e);
-        }
-      });
-    });
-  }
-  return userPromise;
+  return onAuthStateChanged(auth, (u) => {
+    if (u?.isAnonymous) { signOut(auth).catch(() => {}); cb(null); return; }
+    cb(u);
+  });
 }
 
-/** Drops this device's anonymous identity so its bookings are no longer listed here (shared phones). */
-export async function forgetDevice(): Promise<void> {
+/** Resolves the signed-in devotee (the UI never calls the backend while signed out). */
+export function ensureUser(): Promise<User> {
+  init();
+  if (auth.currentUser && !auth.currentUser.isAnonymous) return Promise.resolve(auth.currentUser);
+  return new Promise<User>((resolve, reject) => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      unsub();
+      if (u && !u.isAnonymous) resolve(u);
+      else reject(new Error('auth/not-signed-in'));
+    });
+  });
+}
+
+export const signIn = (email: string, password: string) => (init(), signInWithEmailAndPassword(auth, email.trim(), password));
+
+const MOBILE_KEY = 'profileMobile';
+/** Creates the account and keeps the name on the Firebase profile; the mobile number pre-fills the booking form. */
+export async function signUp(input: { name: string; email: string; password: string; mobile: string }): Promise<User> {
+  init();
+  const cred = await createUserWithEmailAndPassword(auth, input.email.trim(), input.password);
+  await updateProfile(cred.user, { displayName: input.name.trim() });
+  try { localStorage.setItem(MOBILE_KEY, input.mobile); } catch { /* private mode */ }
+  return cred.user;
+}
+export function savedMobile(): string {
+  try { return localStorage.getItem(MOBILE_KEY) ?? ''; } catch { return ''; }
+}
+export function rememberMobile(mobile: string) {
+  try { localStorage.setItem(MOBILE_KEY, mobile); } catch { /* ignore */ }
+}
+
+export const resetPassword = (email: string) => (init(), sendPasswordResetEmail(auth, email.trim()));
+
+export async function signOutUser(): Promise<void> {
   init();
   await signOut(auth);
-  userPromise = null;
+}
+
+/** Maps a Firebase Auth error to a translated message key. */
+export function authErrorKey(e: unknown): StringKey {
+  const code = (e as { code?: string }).code ?? '';
+  if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('invalid-login-credentials')) return 'err_wrongPassword';
+  if (code.includes('user-not-found')) return 'err_userNotFound';
+  if (code.includes('email-already-in-use')) return 'err_emailInUse';
+  if (code.includes('invalid-email')) return 'err_email';
+  if (code.includes('weak-password')) return 'err_password';
+  if (code.includes('too-many-requests')) return 'err_tooMany';
+  if (code.includes('network-request-failed')) return 'err_offline';
+  return 'err_generic';
 }
 
 export class AppError extends Error {

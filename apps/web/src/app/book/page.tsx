@@ -6,8 +6,9 @@ import {
   type BookingType, type CreateBookingInput, type CreateBookingResult, type GroupFamily,
 } from '@temple/shared';
 import { usePrefs, deviceBookings } from '@/lib/prefs';
+import { useAuth } from '@/lib/auth';
 import { useTemple } from '@/lib/data';
-import { callFn, AppError } from '@/lib/firebase';
+import { callFn, AppError, rememberMobile, savedMobile } from '@/lib/firebase';
 import { PageTitle } from '@/components/shell';
 import { DayAvailability, DayNumber, todayYmd } from '@/components/days';
 import { DetailRow, ErrorBox, SlotBadge, SlotCounts, Skeleton, Spinner } from '@/components/ui';
@@ -51,6 +52,7 @@ function Wizard() {
   const { settings, activeDays, slotsForDay, ubayamsForDay, bookingOpen, ready, ubayams } = temple;
   const params = useSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
   const [d, setD] = useState<Draft>(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -64,8 +66,11 @@ function Wizard() {
     try { draft = { ...EMPTY, ...JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}') }; } catch { /* ignore */ }
     const day = params.get('day');
     if (day && day !== draft.dayId) draft = { ...draft, dayId: day, slotId: '', ubayamTypeId: '', step: 1 };
+    // Pre-fill contact details from the devotee's account (editable in the form).
+    if (!draft.contactName && user?.displayName) draft = { ...draft, contactName: user.displayName };
+    if (!draft.mobileNumber) draft = { ...draft, mobileNumber: savedMobile() };
     setD(draft);
-  }, [params]);
+  }, [params, user]);
   useEffect(() => {
     try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* ignore */ }
   }, [d]);
@@ -120,6 +125,7 @@ function Wizard() {
     };
     try {
       const res = await callFn<CreateBookingInput, CreateBookingResult>('createBooking', input, lang);
+      rememberMobile(d.mobileNumber);
       deviceBookings.add(res.bookingId);
       sessionStorage.removeItem(DRAFT_KEY);
       router.push(`/booking?id=${encodeURIComponent(res.bookingId)}`);

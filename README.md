@@ -118,7 +118,7 @@ Resubmit UTR (12 h, 3 tries)
 
 ## Security model
 
-- Devotees get a silent **anonymous** Firebase identity per device. They can read only public configuration and bookings whose `viewerUids` include them. On another phone, *My Bookings → Find a booking* (booking ID + mobile) grants access.
+- Devotees on the **website** sign in with an **email + password account** (Firebase Auth, created on the site's own *Create account* screen; password reset by email). The whole site is behind the sign-in; bookings belong to the account, so *My Bookings* shows them on any phone. The Flutter app still uses a silent **anonymous** identity per device. Either way a user can read only public configuration and bookings whose `viewerUids` include them, and *My Bookings → Find a booking* (booking ID + mobile) grants access to a booking made elsewhere.
 - **Every booking/payment write goes through Cloud Functions.** Firestore rules deny all client writes to bookings, payments, families, groups, locks and counters, so nobody can mark a payment paid or change slot counts from a browser.
 - Admins are Email/Password users with the `admin` custom claim (set only by the CLI script). Rules and every admin function check it. Admins edit configuration directly; rules stop them changing `bookedCount`, lowering capacity below bookings, or deleting booked slots.
 - Abuse limits: per-device, per-IP and per-mobile rate limits; max unpaid holds per device, per mobile and per slot (≤ 50 % of capacity); 3 UTR attempts per booking; UTRs can't be reused.

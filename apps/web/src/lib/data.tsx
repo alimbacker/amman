@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { collection, doc, onSnapshot, orderBy, query, where, type DocumentData } from 'firebase/firestore';
 import type { Booking, Festival, FestivalDay, TempleSettings, TimeSlot, UbayamType } from '@temple/shared';
 import { ensureUser, getDb } from './firebase';
+import { useAuth } from './auth';
 
 interface TempleData {
   ready: boolean;
@@ -91,8 +92,9 @@ export function useTemple(): TempleData & {
   }), [v]);
 }
 
-/** Live single booking (readable once this device is in its viewerUids). */
+/** Live single booking (readable once the signed-in devotee is in its viewerUids). */
 export function useBooking(id: string | null) {
+  const uid = useAuth().user?.uid;
   const [booking, setBooking] = useState<Booking | null>(null);
   const [status, setStatus] = useState<'loading' | 'ok' | 'missing'>('loading');
   useEffect(() => {
@@ -107,15 +109,18 @@ export function useBooking(id: string | null) {
       }, () => setStatus('missing'));
     }).catch(() => setStatus('missing'));
     return () => { cancelled = true; unsub(); };
-  }, [id]);
+  }, [id, uid]);
   return { booking, status };
 }
 
-/** All bookings this device may see, newest first. */
+/** All bookings of the signed-in devotee (made on any phone), newest first. */
 export function useMyBookings() {
+  const uid = useAuth().user?.uid;
   const [items, setItems] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
+    setItems([]);
+    setLoading(true);
     let unsub = () => {};
     let cancelled = false;
     ensureUser().then((u) => {
@@ -127,6 +132,6 @@ export function useMyBookings() {
       );
     }).catch(() => setLoading(false));
     return () => { cancelled = true; unsub(); };
-  }, []);
+  }, [uid]);
   return { items, loading };
 }

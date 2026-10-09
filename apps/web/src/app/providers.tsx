@@ -2,18 +2,29 @@
 import type { ReactNode } from 'react';
 import { PrefsProvider } from '@/lib/prefs';
 import { TempleDataProvider } from '@/lib/data';
+import { AuthGate, AuthProvider } from '@/lib/auth';
 import { firebaseConfigured } from '@/lib/firebase';
 import { AppShell } from '@/components/shell';
+import { AuthScreen } from '@/components/auth-screen';
 
 export function Providers({ children }: { children: ReactNode }) {
   if (!firebaseConfigured) return <NotConfigured />;
   return (
     <PrefsProvider>
       <TempleDataProvider>
-        <AppShell>{children}</AppShell>
+        <AuthProvider>
+          {/* Devotees must sign in before anything else — public config (temple name, logo) still loads behind the gate. */}
+          <AuthGate fallback={<AuthScreen />} loading={<Splash />}>
+            <AppShell>{children}</AppShell>
+          </AuthGate>
+        </AuthProvider>
       </TempleDataProvider>
     </PrefsProvider>
   );
+}
+
+function Splash() {
+  return <div className="grid min-h-screen place-items-center"><span className="h-9 w-9 animate-spin rounded-full border-4 border-crimson border-r-transparent" /></div>;
 }
 
 /** Shown instead of a blank crash when the build had no Firebase config (e.g. env vars missing on Vercel). */
