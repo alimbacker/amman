@@ -1,0 +1,9 @@
+{
+  "name": "ஸ்ரீ கொன்னை அம்மன் ஆலயம் – நவராத்திரி உபயம்",
+  "short_name": "கொன்னை அம்மன்",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#6B0F1A",
+  "theme_color": "#6B0F1A",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

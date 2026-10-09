@@ -1,0 +1,20 @@
+{
+  "name": "konnai-amman-ubayam",
+  "private": true,
+  "workspaces": [
+    "packages/shared",
+    "apps/web",
+    "apps/admin"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "dev:admin": "npm --workspace apps/admin run dev",
+    "build:web": "npm --workspace apps/web run build",
+    "build:admin": "npm --workspace apps/admin run build",
+    "build:functions": "npm --prefix functions run build",
+    "build": "npm run build:functions && npm run build:web && npm run build:admin",
+    "seed": "npm --prefix functions run seed",
+    "set-admin": "npm --prefix functions run set-admin --",
+    "test": "npm --prefix functions test"
+  }
+}

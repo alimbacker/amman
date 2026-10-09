@@ -1,0 +1,59 @@
+rules_version = '2';
+// Customers (anonymous auth) can read public config and the bookings they own.
+// EVERY booking/payment write goes through Cloud Functions (Admin SDK bypasses these rules),
+// so no client can create bookings, change slot counts or mark a payment as paid.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function unchanged(f) { return request.resource.data.get(f, null) == resource.data.get(f, null); }
+
+    // ---------- public configuration (read-only for customers) ----------
+    match /settings/public { allow read: if true; allow write: if isAdmin(); }
+    match /settings/{doc} { allow read, write: if isAdmin(); }
+
+    match /festivals/{id}    { allow read: if true; allow write: if isAdmin(); }
+    match /festivalDays/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /ubayamTypes/{id}  { allow read: if true; allow write: if isAdmin() && request.resource.data.price is number && request.resource.data.price >= 0; allow delete: if isAdmin(); }
+
+    // bookedCount is owned by Cloud Functions: admins may edit everything else,
+    // never lower capacity below what is already booked, and only delete empty slots.
+    match /timeSlots/{id} {
+      allow read: if true;
+      allow create: if isAdmin()
+        && request.resource.data.bookedCount == 0
+        && request.resource.data.capacity is int && request.resource.data.capacity >= 1;
+      allow update: if isAdmin() && unchanged('bookedCount')
+        && request.resource.data.capacity is int
+        && request.resource.data.capacity >= resource.data.bookedCount;
+      allow delete: if isAdmin() && resource.data.bookedCount == 0;
+    }
+
+    // ---------- bookings: read own (via viewerUids) or admin; never written by clients ----------
+    match /bookings/{id} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid in resource.data.viewerUids);
+      allow write: if false;
+    }
+
+    match /notifications/{id} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid in resource.data.userIds);
+      allow write: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow write: if false;
+    }
+
+    // ---------- admin-only, function-written ----------
+    match /payments/{id}      { allow read: if isAdmin(); allow write: if false; }
+    match /families/{id}      { allow read: if isAdmin(); allow write: if false; }
+    match /familyMembers/{id} { allow read: if isAdmin(); allow write: if false; }
+    match /groups/{id}        { allow read: if isAdmin(); allow write: if false; }
+    match /auditLogs/{id}     { allow read: if isAdmin(); allow write: if false; }
+
+    // internal: locks, counters, rate limits
+    match /{internal=**} { allow read, write: if false; }
+  }
+}

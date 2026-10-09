@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Elderly-friendly base size, adjustable from Settings → Text size */
+html { font-size: 17px; -webkit-text-size-adjust: 100%; }
+html[data-size='large'] { font-size: 19px; }
+html[data-size='xl'] { font-size: 21px; }
+
+body {
+  @apply bg-cream font-body text-ink antialiased;
+  /* faint kolam dot grid */
+  background-image: radial-gradient(rgba(201, 150, 43, 0.14) 1.2px, transparent 1.3px);
+  background-size: 22px 22px;
+  line-height: 1.55;
+  font-variant-numeric: lining-nums;
+}
+
+h1, h2, h3 { font-family: 'Noto Serif Tamil', Georgia, serif; letter-spacing: -0.005em; }
+
+:focus-visible { outline: 3px solid #E8C468; outline-offset: 2px; border-radius: 8px; }
+
+@layer components {
+  .btn {
+    @apply inline-flex min-h-[3.25rem] items-center justify-center gap-2 rounded-2xl px-6 text-[1.05rem] font-semibold transition
+      active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary { @apply btn bg-crimson text-white shadow-lift hover:bg-crimson-600; }
+  .btn-gold { @apply btn bg-gradient-to-b from-gold-light to-gold text-maroon-900 shadow-lift hover:brightness-105; }
+  .btn-outline { @apply btn border-2 border-maroon/25 bg-white text-maroon hover:border-maroon/50; }
+  .btn-ghost { @apply btn min-h-[2.75rem] px-3 text-maroon hover:bg-maroon-50; }
+
+  .card { @apply rounded-xl2 border border-gold/25 bg-white shadow-card; }
+  .field-label { @apply mb-1.5 block text-[0.95rem] font-semibold text-ink-soft; }
+  .field {
+    @apply w-full rounded-xl border-2 border-gold/30 bg-white px-4 py-3 text-[1.05rem] text-ink outline-none transition
+      placeholder:text-ink-mute/70 focus:border-gold focus:ring-4 focus:ring-gold-pale;
+  }
+  .field-error { @apply mt-1 text-sm font-medium text-crimson; }
+
+  .ornament-rule {
+    height: 10px;
+    background:
+      radial-gradient(circle at 50% 50%, #C9962B 2.5px, transparent 3px) 0 0 / 18px 10px repeat-x,
+      linear-gradient(#C9962B, #C9962B) 0 50% / 100% 1px no-repeat;
+    opacity: .7;
+  }
+  .skeleton { @apply animate-pulse rounded-lg bg-gold-pale/70; }
+}
+
+/* temple-arch top edge used on hero and confirmation */
+.arch-top { clip-path: ellipse(120% 100% at 50% 100%); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* hide scrollbar on horizontal rails */
+.rail { scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; }
