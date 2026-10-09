@@ -15,6 +15,14 @@ const config = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+/**
+ * True when the Firebase web config was present at build time.
+ * The NEXT_PUBLIC_* values are inlined into the static bundle by `next build`, so a host
+ * (Vercel, Netlify, …) must have them set as environment variables BEFORE building —
+ * otherwise `getAuth()` throws `auth/invalid-api-key` and the whole app crashes.
+ */
+export const firebaseConfigured = Boolean(config.apiKey && config.projectId && config.appId);
+
 let app: FirebaseApp, db: Firestore, auth: Auth, fns: Functions, storage: FirebaseStorage;
 
 function init() {

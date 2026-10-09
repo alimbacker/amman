@@ -66,6 +66,18 @@ See [`apps/mobile/README.md`](apps/mobile/README.md) (`flutter create .`, `flutt
 - `functions/.env` → `ENFORCE_APP_CHECK=true`, then `firebase deploy --only functions`
 - `apps/web/.env.local` → `NEXT_PUBLIC_RECAPTCHA_SITE_KEY=...`, rebuild and redeploy the website
 
+### Hosting the website / admin on Vercel instead of Firebase Hosting
+
+Both apps are static exports, so they also run on Vercel — **one Vercel project per app**:
+
+| Setting (Project → Settings) | Website | Admin |
+|---|---|---|
+| General → Root Directory | `apps/web` | `apps/admin` |
+| General → Framework Preset | Next.js | Next.js |
+| Environment Variables | all `NEXT_PUBLIC_FIREBASE_*` from `apps/web/.env.example` | same values |
+
+Vercel detects the npm workspaces and installs from the repo root automatically. The `NEXT_PUBLIC_*` values are **inlined at build time** — `.env.local` is git-ignored, so without them in Vercel the build has no Firebase config, `getAuth()` throws `auth/invalid-api-key`, and Next.js shows its generic *"This page couldn't load"* screen. After adding or changing the variables, trigger a **Redeploy** (Deployments → ⋯ → Redeploy); a new build is required for them to take effect. Cloud Functions, rules and indexes still deploy with `firebase deploy`.
+
 ## 3. Local development
 
 ```bash

@@ -19,6 +19,14 @@ const config = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
+
+/**
+ * True when the Firebase web config was present at build time.
+ * The NEXT_PUBLIC_* values are inlined into the static bundle by `next build`, so a host
+ * (Vercel, Netlify, …) must have them set as environment variables BEFORE building —
+ * otherwise `getAuth()` throws `auth/invalid-api-key` and the whole app crashes.
+ */
+export const firebaseConfigured = Boolean(config.apiKey && config.projectId && config.appId);
 const useEmulators = process.env.NEXT_PUBLIC_USE_EMULATORS === 'true';
 
 let app: FirebaseApp, db: Firestore, auth: Auth, fns: Functions;
