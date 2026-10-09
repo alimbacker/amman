@@ -1,15 +1,14 @@
 'use client';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { normalizeMobile } from '@temple/shared';
+import { normalizeMobile, whatsappLink } from '@temple/shared';
 import { usePrefs } from '@/lib/prefs';
 import { useTemple } from '@/lib/data';
-import { authErrorKey, resetPassword, signIn, signUp } from '@/lib/firebase';
+import { authErrorKey, signIn, signUp } from '@/lib/firebase';
 import { LangToggle, LanguageGate, Logo } from './shell';
 import { ErrorBox, Spinner } from './ui';
-import { Gopuram, IconCheck, IconUser } from './icons';
+import { Gopuram, IconPhone, IconUser, IconWhatsApp } from './icons';
 
 type Mode = 'signin' | 'signup' | 'reset';
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /** Full-screen sign-in / create-account / reset-password. Shown before anything else on the site. */
 export function AuthScreen() {
@@ -53,7 +52,7 @@ export function AuthScreen() {
 
 function SignInForm({ onMode }: { onMode: (m: Mode) => void }) {
   const { t } = usePrefs();
-  const [email, setEmail] = useState('');
+  const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -61,11 +60,11 @@ function SignInForm({ onMode }: { onMode: (m: Mode) => void }) {
   async function submit(e: FormEvent) {
     e.preventDefault();
     setErr('');
-    if (!EMAIL_RE.test(email.trim())) return setErr(t('err_email'));
+    if (!normalizeMobile(mobile)) return setErr(t('err_mobile'));
     if (!password) return setErr(t('err_required'));
     setBusy(true);
     try {
-      await signIn(email, password); // AuthProvider sees the new session and swaps in the app
+      await signIn(mobile, password); // AuthProvider sees the new session and swaps in the app
     } catch (e2) {
       setErr(t(authErrorKey(e2)));
       setBusy(false);
@@ -75,9 +74,7 @@ function SignInForm({ onMode }: { onMode: (m: Mode) => void }) {
   return (
     <form onSubmit={submit} className="space-y-4" noValidate>
       <Heading icon={<IconUser size={30} />} title={t('signInTitle')} help={t('signInHelp')} />
-      <Field label={t('email')}>
-        <input className="field" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} />
-      </Field>
+      <MobileField value={mobile} onChange={setMobile} autoFocus />
       <PasswordField label={t('password')} value={password} onChange={setPassword} autoComplete="current-password" />
       <ErrorBox>{err}</ErrorBox>
       <button className="btn-primary w-full text-lg" disabled={busy}>{busy ? <Spinner /> : null} {t('signIn')}</button>
@@ -93,7 +90,7 @@ function SignInForm({ onMode }: { onMode: (m: Mode) => void }) {
 
 function SignUpForm({ onMode }: { onMode: (m: Mode) => void }) {
   const { t } = usePrefs();
-  const [f, setF] = useState({ name: '', mobile: '', email: '', password: '', confirm: '' });
+  const [f, setF] = useState({ name: '', mobile: '', password: '', confirm: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -105,14 +102,13 @@ function SignUpForm({ onMode }: { onMode: (m: Mode) => void }) {
     const er: Record<string, string> = {};
     if (f.name.trim().length < 2) er.name = t('err_required');
     if (!normalizeMobile(f.mobile)) er.mobile = t('err_mobile');
-    if (!EMAIL_RE.test(f.email.trim())) er.email = t('err_email');
     if (f.password.length < 6) er.password = t('err_password');
     if (f.confirm !== f.password) er.confirm = t('err_passwordMatch');
     setErrors(er);
     if (Object.keys(er).length) return;
     setBusy(true);
     try {
-      await signUp({ name: f.name, email: f.email, password: f.password, mobile: normalizeMobile(f.mobile) ?? f.mobile });
+      await signUp({ name: f.name, password: f.password, mobile: f.mobile });
     } catch (e2) {
       setErr(t(authErrorKey(e2)));
       setBusy(false);
@@ -125,13 +121,7 @@ function SignUpForm({ onMode }: { onMode: (m: Mode) => void }) {
       <Field label={t('fullName')} error={errors.name}>
         <input className="field" autoComplete="name" value={f.name} onChange={(e) => set({ name: e.target.value })} />
       </Field>
-      <Field label={t('mobileNumber')} error={errors.mobile}>
-        <input className="field" inputMode="numeric" autoComplete="tel-national" placeholder="98765 43210" value={f.mobile}
-          onChange={(e) => set({ mobile: e.target.value.replace(/[^\d\s+]/g, '') })} />
-      </Field>
-      <Field label={t('email')} error={errors.email}>
-        <input className="field" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={f.email} onChange={(e) => set({ email: e.target.value })} />
-      </Field>
+      <MobileField value={f.mobile} onChange={(v) => set({ mobile: v })} error={errors.mobile} />
       <PasswordField label={t('password')} value={f.password} onChange={(v) => set({ password: v })} autoComplete="new-password" error={errors.password} />
       <PasswordField label={t('confirmPassword')} value={f.confirm} onChange={(v) => set({ confirm: v })} autoComplete="new-password" error={errors.confirm} />
       <ErrorBox>{err}</ErrorBox>
@@ -146,44 +136,19 @@ function SignUpForm({ onMode }: { onMode: (m: Mode) => void }) {
 
 function ResetForm({ onMode }: { onMode: (m: Mode) => void }) {
   const { t } = usePrefs();
-  const [email, setEmail] = useState('');
-  const [err, setErr] = useState('');
-  const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setErr('');
-    if (!EMAIL_RE.test(email.trim())) return setErr(t('err_email'));
-    setBusy(true);
-    try {
-      await resetPassword(email);
-      setSent(true);
-    } catch (e2) {
-      // Firebase hides whether the email exists (enumeration protection); treat as sent unless it is a real failure.
-      const k = authErrorKey(e2);
-      if (k === 'err_userNotFound' || k === 'err_generic') setSent(true); else setErr(t(k));
-    } finally {
-      setBusy(false);
-    }
-  }
-
+  const { settings } = useTemple();
+  const phone = settings?.phone?.replace(/\s/g, '') ?? '';
   return (
-    <form onSubmit={submit} className="space-y-4" noValidate>
+    <div className="space-y-4">
       <Heading title={t('resetTitle')} help={t('resetHelp')} />
-      {sent ? (
-        <div className="rounded-xl bg-green-50 px-4 py-3 font-medium text-green-800"><IconCheck /> {t('resetSent')}</div>
-      ) : (
-        <>
-          <Field label={t('email')}>
-            <input className="field" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </Field>
-          <ErrorBox>{err}</ErrorBox>
-          <button className="btn-primary w-full text-lg" disabled={busy}>{busy ? <Spinner /> : null} {t('sendResetLink')}</button>
-        </>
+      {settings?.whatsapp && (
+        <a className="btn-primary w-full text-lg" href={whatsappLink(settings.whatsapp, `${t('resetTitle')} - ${t('mobileNumber')}: `)} target="_blank" rel="noreferrer">
+          <IconWhatsApp size={22} /> {t('whatsapp')}
+        </a>
       )}
+      {phone && <a className="btn-gold w-full text-lg" href={`tel:${phone}`}><IconPhone size={22} /> {t('call')} {settings?.phone}</a>}
       <button type="button" className="btn-outline w-full" onClick={() => onMode('signin')}>{t('backToSignIn')}</button>
-    </form>
+    </div>
   );
 }
 
@@ -206,6 +171,19 @@ function Field({ label, error, children }: { label: string; error?: string; chil
       {children}
       {error && <span className="field-error">{error}</span>}
     </label>
+  );
+}
+
+function MobileField({ value, onChange, error, autoFocus }: { value: string; onChange: (v: string) => void; error?: string; autoFocus?: boolean }) {
+  const { t } = usePrefs();
+  return (
+    <Field label={t('mobileNumber')} error={error}>
+      <div className="flex items-stretch">
+        <span className="flex items-center rounded-l-xl border-2 border-r-0 border-gold/40 bg-cream-deep px-3 font-semibold text-ink-soft">+91</span>
+        <input className="field rounded-l-none" inputMode="numeric" autoComplete="tel-national" placeholder="98765 43210" maxLength={13} autoFocus={autoFocus}
+          value={value} onChange={(e) => onChange(e.target.value.replace(/[^\d\s]/g, ''))} />
+      </div>
+    </Field>
   );
 }
 
