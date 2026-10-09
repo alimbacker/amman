@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export', // static site → Firebase Hosting; all data comes from Firebase at runtime
-  transpilePackages: ['@temple/shared'],
+  // Pages are static; /api/* routes run on Vercel's Node runtime (replaces Firebase Cloud Functions).
+  transpilePackages: ['@temple/shared', '@temple/server'],
+  serverExternalPackages: ['firebase-admin'],
   images: { unoptimized: true },
   reactStrictMode: true,
 };

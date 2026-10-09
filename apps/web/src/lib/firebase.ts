@@ -11,8 +11,7 @@ import {
   connectFirestoreEmulator,
   type Firestore,
 } from 'firebase/firestore';
-import { getFunctions, httpsCallable, connectFunctionsEmulator, type Functions } from 'firebase/functions';
-import { FUNCTIONS_REGION, errorMessages, t, type BookingErrorCode, type Lang, type StringKey } from '@temple/shared';
+import { errorMessages, t, type BookingErrorCode, type Lang, type StringKey } from '@temple/shared';
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -32,7 +31,7 @@ const config = {
 export const firebaseConfigured = Boolean(config.apiKey && config.projectId && config.appId);
 const useEmulators = process.env.NEXT_PUBLIC_USE_EMULATORS === 'true';
 
-let app: FirebaseApp, db: Firestore, auth: Auth, fns: Functions;
+let app: FirebaseApp, db: Firestore, auth: Auth;
 
 function init() {
   if (app) return;
@@ -44,11 +43,9 @@ function init() {
     db = initializeFirestore(app, {});
   }
   auth = getAuth(app);
-  fns = getFunctions(app, FUNCTIONS_REGION);
   if (useEmulators) {
     connectFirestoreEmulator(db, 'localhost', 8080);
     connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-    connectFunctionsEmulator(fns, 'localhost', 5001);
   }
   const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
   if (siteKey) {
@@ -131,19 +128,23 @@ export class AppError extends Error {
   }
 }
 
-/** Calls a Cloud Function and turns failures into a translated message. */
+/** Calls a server function (POST /api/<name>, run by Vercel) and turns failures into a translated message. */
 export async function callFn<I, O>(name: string, data: I, lang: Lang): Promise<O> {
+  let res: Response;
   try {
-    await ensureUser();
-    const res = await httpsCallable<I, O>(fns, name, { timeout: 30_000 })(data);
-    return res.data;
-  } catch (e: unknown) {
-    const err = e as { code?: string; details?: { code?: BookingErrorCode } };
-    const code = err.details?.code;
-    if (code && errorMessages[code]) throw new AppError(code, errorMessages[code][lang]);
-    if (err.code === 'functions/unavailable' || err.code === 'functions/deadline-exceeded' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
-      throw new AppError('OFFLINE', t('err_offline', lang));
-    }
-    throw new AppError('UNKNOWN', t('err_generic', lang));
+    const user = await ensureUser();
+    const token = await user.getIdToken();
+    res = await fetch(`/api/${name}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify(data ?? {}),
+    });
+  } catch {
+    throw new AppError('OFFLINE', t('err_offline', lang));
   }
+  const body = (await res.json().catch(() => ({}))) as { data?: O; error?: { code?: string; message?: string } };
+  if (res.ok) return body.data as O;
+  const code = body.error?.code as BookingErrorCode | undefined;
+  if (code && errorMessages[code]) throw new AppError(code, errorMessages[code][lang]);
+  throw new AppError('UNKNOWN', t('err_generic', lang));
 }

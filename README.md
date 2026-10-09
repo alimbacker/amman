@@ -7,8 +7,10 @@
 | 🌐 Customer website (responsive) | `apps/web` | Next.js 16 · TypeScript · Tailwind (static export) |
 | 🖥️ Admin dashboard | `apps/admin` | Next.js 16 · TypeScript · Tailwind (static export) |
 | 📱 Customer mobile app | `apps/mobile` | Flutter (Android / iOS) |
-| 🔥 Backend | `functions`, `firestore.rules`, `storage.rules` | Cloud Functions (Node 22, TS) · Firestore · Auth · Storage · FCM |
+| 🔥 Backend | `packages/server` (served as `/api/*` by both Next.js apps on Vercel) · `firestore.rules` | Firebase Admin SDK · Firestore · Auth · FCM — **no Blaze plan needed** |
+| ☁️ Backend (alternative) | `functions` | The same logic as Cloud Functions, for teams that prefer Firebase Hosting + Blaze |
 | Shared model, i18n, helpers | `packages/shared` | TypeScript (copied into functions; generated into Dart) |
+| Booking engine | `packages/server` | TypeScript — transactions, payments, holds, notifications, audit |
 
 All three clients use the **same Firebase project**. Nothing about the temple is hard-coded: temple name, address, phone, WhatsApp, UPI ID, QR, festival, dates, days, slots, capacity, ubayam names and prices all live in Firestore and are edited in the admin dashboard.
 
@@ -66,17 +68,25 @@ See [`apps/mobile/README.md`](apps/mobile/README.md) (`flutter create .`, `flutt
 - `functions/.env` → `ENFORCE_APP_CHECK=true`, then `firebase deploy --only functions`
 - `apps/web/.env.local` → `NEXT_PUBLIC_RECAPTCHA_SITE_KEY=...`, rebuild and redeploy the website
 
-### Hosting the website / admin on Vercel instead of Firebase Hosting
+### Hosting on Vercel (free Spark plan — the default setup)
 
-Both apps are static exports, so they also run on Vercel — **one Vercel project per app**:
+Both apps are Next.js projects on Vercel, **one Vercel project per app**. Their `/api/*` routes run the booking engine
+(`packages/server`) with the Firebase Admin SDK, so **Cloud Functions, Storage and the Blaze plan are not required**.
+Images (logo, temple photo, UPI QR) are stored inside Firestore as compressed data URLs.
 
 | Setting (Project → Settings) | Website | Admin |
 |---|---|---|
 | General → Root Directory | `apps/web` | `apps/admin` |
 | General → Framework Preset | Next.js | Next.js |
 | Environment Variables | all `NEXT_PUBLIC_FIREBASE_*` from `apps/web/.env.example` | same values |
+| Environment Variables (secret) | `FIREBASE_SERVICE_ACCOUNT` = the service-account JSON (paste the whole file) · `CRON_SECRET` = any random string | same |
 
-Vercel detects the npm workspaces and installs from the repo root automatically. The `NEXT_PUBLIC_*` values are **inlined at build time** — `.env.local` is git-ignored, so without them in Vercel the build has no Firebase config, `getAuth()` throws `auth/invalid-api-key`, and Next.js shows its generic *"This page couldn't load"* screen. After adding or changing the variables, trigger a **Redeploy** (Deployments → ⋯ → Redeploy); a new build is required for them to take effect. Cloud Functions, rules and indexes still deploy with `firebase deploy`.
+Vercel detects the npm workspaces and installs from the repo root automatically. Variables are **inlined at build time**, so after
+adding or changing them trigger a **Redeploy** (Deployments → ⋯ → Redeploy). Firestore rules still deploy with
+`firebase deploy --only firestore` (or paste `firestore.rules` into Console → Firestore → Rules → Publish).
+
+Housekeeping (expiring unpaid holds, marking past bookings completed) runs opportunistically — on every booking and whenever an
+admin opens the dashboard, throttled to once per 3 minutes — plus a daily Vercel cron (`apps/*/vercel.json` → `/api/cron`).
 
 ## 3. Local development
 

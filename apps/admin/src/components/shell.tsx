@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { AllBookingsProvider, ConfigProvider, useAuth, useConfig } from '@/lib/context';
+import { callAdmin } from '@/lib/firebase';
 import { Btn } from './ui';
 import {
   IconBell, IconCalendar, IconChart, IconClock, IconFamily, IconFlag, IconGrid, IconLayers, IconLogout, IconMenu,
@@ -91,6 +92,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
     if (auth.status === 'signedOut' && !isLogin) router.replace('/login');
     if (auth.status === 'admin' && isLogin) router.replace('/');
   }, [auth.status, isLogin, router]);
+  // Housekeeping (expire unpaid holds, complete past bookings) runs when an admin opens the dashboard; throttled server-side.
+  useEffect(() => { if (auth.status === 'admin') callAdmin('maintenance', {}).catch(() => {}); }, [auth.status]);
 
   // On /login, a signed-in user without the admin claim must see "Not authorised" instead of a form that silently does nothing.
   if (isLogin && auth.status !== 'denied') return <>{children}</>;
