@@ -8,7 +8,7 @@ import {
 import { usePrefs, deviceBookings } from '@/lib/prefs';
 import { useAuth } from '@/lib/auth';
 import { useTemple } from '@/lib/data';
-import { callFn, AppError, rememberMobile, savedMobile } from '@/lib/firebase';
+import { callFn, AppError, rememberMobile, userMobile } from '@/lib/firebase';
 import { PageTitle } from '@/components/shell';
 import { DayAvailability, DayNumber, todayYmd } from '@/components/days';
 import { DetailRow, ErrorBox, SlotBadge, SlotCounts, Skeleton, Spinner } from '@/components/ui';
@@ -68,7 +68,7 @@ function Wizard() {
     if (day && day !== draft.dayId) draft = { ...draft, dayId: day, slotId: '', ubayamTypeId: '', step: 1 };
     // Pre-fill contact details from the devotee's account (editable in the form).
     if (!draft.contactName && user?.displayName) draft = { ...draft, contactName: user.displayName };
-    if (!draft.mobileNumber) draft = { ...draft, mobileNumber: savedMobile() };
+    if (!draft.mobileNumber) draft = { ...draft, mobileNumber: userMobile(user) };
     setD(draft);
   }, [params, user]);
   useEffect(() => {
