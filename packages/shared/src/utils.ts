@@ -25,6 +25,15 @@ export function normalizeMobile(input: string): string | null {
   return /^[6-9]\d{9}$/.test(d) ? d : null;
 }
 
+/**
+ * Devotees sign in with mobile number + password. Firebase Auth needs an email address for that,
+ * so the account's email is derived from the 10-digit mobile number (it never receives mail).
+ */
+export const PHONE_LOGIN_DOMAIN = 'phone.konnai-amman.local';
+export const phoneEmail = (mobile10: string) => `${mobile10}@${PHONE_LOGIN_DOMAIN}`;
+export const mobileFromEmail = (email: string | null | undefined): string | null =>
+  email && email.endsWith(`@${PHONE_LOGIN_DOMAIN}`) ? email.split('@')[0] : null;
+
 export function maskMobile(m: string): string {
   return m.length === 10 ? `${m.slice(0, 2)}xxxxxx${m.slice(8)}` : m;
 }
