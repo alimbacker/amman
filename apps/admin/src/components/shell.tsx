@@ -92,7 +92,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
     if (auth.status === 'admin' && isLogin) router.replace('/');
   }, [auth.status, isLogin, router]);
 
-  if (isLogin) return <>{children}</>;
+  // On /login, a signed-in user without the admin claim must see "Not authorised" instead of a form that silently does nothing.
+  if (isLogin && auth.status !== 'denied') return <>{children}</>;
   if (auth.status === 'loading' || auth.status === 'signedOut') {
     return <div className="grid min-h-screen place-items-center"><span className="h-8 w-8 animate-spin rounded-full border-4 border-crimson border-r-transparent" /></div>;
   }
