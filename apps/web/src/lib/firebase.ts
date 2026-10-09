@@ -2,7 +2,7 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import {
   getAuth, onAuthStateChanged, connectAuthEmulator, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  sendPasswordResetEmail, updateProfile, signOut, type Auth, type User,
+  updateProfile, signOut, type Auth, type User,
 } from 'firebase/auth';
 import {
   initializeFirestore,
@@ -11,7 +11,7 @@ import {
   connectFirestoreEmulator,
   type Firestore,
 } from 'firebase/firestore';
-import { errorMessages, t, type BookingErrorCode, type Lang, type StringKey } from '@temple/shared';
+import { errorMessages, mobileFromEmail, normalizeMobile, phoneEmail, t, type BookingErrorCode, type Lang, type StringKey } from '@temple/shared';
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -84,16 +84,28 @@ export function ensureUser(): Promise<User> {
   });
 }
 
-export const signIn = (email: string, password: string) => (init(), signInWithEmailAndPassword(auth, email.trim(), password));
+/** Devotees sign in with mobile number + password (Firebase stores it under a derived email, see phoneEmail). */
+export function signIn(mobile: string, password: string) {
+  init();
+  const m = normalizeMobile(mobile);
+  if (!m) return Promise.reject({ code: 'auth/invalid-mobile' });
+  return signInWithEmailAndPassword(auth, phoneEmail(m), password);
+}
 
 const MOBILE_KEY = 'profileMobile';
-/** Creates the account and keeps the name on the Firebase profile; the mobile number pre-fills the booking form. */
-export async function signUp(input: { name: string; email: string; password: string; mobile: string }): Promise<User> {
+/** Creates the account; the name lives on the Firebase profile and the mobile number pre-fills the booking form. */
+export async function signUp(input: { name: string; password: string; mobile: string }): Promise<User> {
   init();
-  const cred = await createUserWithEmailAndPassword(auth, input.email.trim(), input.password);
+  const m = normalizeMobile(input.mobile);
+  if (!m) throw { code: 'auth/invalid-mobile' };
+  const cred = await createUserWithEmailAndPassword(auth, phoneEmail(m), input.password);
   await updateProfile(cred.user, { displayName: input.name.trim() });
-  try { localStorage.setItem(MOBILE_KEY, input.mobile); } catch { /* private mode */ }
+  try { localStorage.setItem(MOBILE_KEY, m); } catch { /* private mode */ }
   return cred.user;
+}
+/** The mobile number of the signed-in devotee (from the account), or the last one used on this device. */
+export function userMobile(user: User | null | undefined): string {
+  return mobileFromEmail(user?.email) ?? savedMobile();
 }
 export function savedMobile(): string {
   try { return localStorage.getItem(MOBILE_KEY) ?? ''; } catch { return ''; }
@@ -101,8 +113,6 @@ export function savedMobile(): string {
 export function rememberMobile(mobile: string) {
   try { localStorage.setItem(MOBILE_KEY, mobile); } catch { /* ignore */ }
 }
-
-export const resetPassword = (email: string) => (init(), sendPasswordResetEmail(auth, email.trim()));
 
 export async function signOutUser(): Promise<void> {
   init();
@@ -115,7 +125,8 @@ export function authErrorKey(e: unknown): StringKey {
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('invalid-login-credentials')) return 'err_wrongPassword';
   if (code.includes('user-not-found')) return 'err_userNotFound';
   if (code.includes('email-already-in-use')) return 'err_emailInUse';
-  if (code.includes('invalid-email')) return 'err_email';
+  if (code.includes('invalid-mobile')) return 'err_mobile';
+  if (code.includes('invalid-email')) return 'err_mobile';
   if (code.includes('weak-password')) return 'err_password';
   if (code.includes('too-many-requests')) return 'err_tooMany';
   if (code.includes('network-request-failed')) return 'err_offline';
