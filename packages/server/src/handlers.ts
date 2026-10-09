@@ -12,6 +12,9 @@ import {
 } from './logic';
 import { pushToAll, pushToUsers } from './notify';
 import { afterStatusChange, runMaintenance } from './maintenance';
+import { ensureIndexesThrottled } from './indexes';
+import { auth as adminAuth } from './core';
+import { phoneEmail } from '@temple/shared';
 import { normalizeMobile, type Booking } from '@temple/shared';
 
 export type Handler = (c: Caller, data: unknown) => Promise<unknown>;
@@ -302,8 +305,31 @@ const adminAudit: Handler = async (c, raw) => {
   return { ok: true };
 };
 
+/** Creates any missing Firestore composite indexes (replaces `firebase deploy --only firestore:indexes`). */
+const adminEnsureIndexes: Handler = async (c, raw) => {
+  requireAdmin(c);
+  const force = !!(raw as { force?: boolean } | null)?.force;
+  return ensureIndexesThrottled(force);
+};
+
+/** Sets a new password for a devotee who signs in with mobile number + password. */
+const adminResetPassword: Handler = async (c, raw) => {
+  const admin = requireAdmin(c);
+  const data = parse(z.object({ mobileNumber: z.string().max(20), password: z.string().min(6).max(100) }), raw);
+  const mobile = normalizeMobile(data.mobileNumber);
+  if (!mobile) throw new RuleError('INVALID_INPUT', 'mobileNumber: invalid');
+  let uid: string;
+  try { uid = (await adminAuth().getUserByEmail(phoneEmail(mobile))).uid; } catch { throw new RuleError('NOT_FOUND', 'no account for this mobile number'); }
+  await adminAuth().updateUser(uid, { password: data.password });
+  await adminAuth().revokeRefreshTokens(uid);
+  await db.collection('auditLogs').add(auditEntry('user.resetPassword', `users/${uid}`, admin, { mobile }));
+  return { ok: true };
+};
+
 export const customerHandlers: Record<string, Handler> = { createBooking, submitPayment, lookupBooking, registerDevice, maintenance };
-export const adminHandlers: Record<string, Handler> = { adminCreateBooking, adminVerifyPayment, adminCancelBooking, adminSendNotification, adminAudit, maintenance };
+export const adminHandlers: Record<string, Handler> = {
+  adminCreateBooking, adminVerifyPayment, adminCancelBooking, adminSendNotification, adminAudit, adminEnsureIndexes, adminResetPassword, maintenance,
+};
 
 /** Converts rule errors into API errors (what `guard()` did for the callables). */
 export function toApiError(e: unknown): ApiError {
