@@ -3,7 +3,8 @@ import { Fragment, useMemo, useState } from 'react';
 import { formatINR, type Booking } from '@temple/shared';
 import { useAllBookings } from '@/lib/context';
 import { NeedFestival, PageHead } from '@/components/shell';
-import { Btn, Card, Empty, ExportButtons, Input, Skeleton, type Col } from '@/components/ui';
+import { Btn, Card, Empty, ExportButtons, Input, Skeleton, useUi, type Col } from '@/components/ui';
+import { callAdmin } from '@/lib/firebase';
 import { BookingModal } from '@/components/booking';
 import { IconRefresh } from '@/components/icons';
 
@@ -28,6 +29,16 @@ function Customers() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const { toast, confirm } = useUi();
+
+  /** Devotees sign in with mobile + password; the temple office sets a new password when they forget it. */
+  async function resetPassword(mobile: string) {
+    const password = await confirm({ title: `Reset password for ${mobile}`, body: 'At least 6 characters. Tell the devotee verbally — it is not sent anywhere.', confirm: 'Set password', input: 'New password' });
+    if (!password) return;
+    if (password.length < 6) return toast('Password must be at least 6 characters', 'err');
+    try { await callAdmin('adminResetPassword', { mobileNumber: mobile, password }); toast(`Password updated for ${mobile}`); }
+    catch (e) { toast((e as Error).message, 'err'); }
+  }
 
   const customers = useMemo(() => {
     const m = new Map<string, Customer>();
@@ -68,11 +79,13 @@ function Customers() {
                     </tr>
                     {expanded === c.mobile && (
                       <tr className="bg-cream/60"><td colSpan={5} className="px-4 py-2">
-                        <div className="flex flex-wrap gap-2">{c.bookings.map((b) => (
+                        <div className="flex flex-wrap items-center gap-2">{c.bookings.map((b) => (
                           <button key={b.bookingId} onClick={() => setOpen(b.bookingId)} className="rounded-lg border border-gold/30 bg-white px-2.5 py-1 font-mono text-sm text-crimson hover:border-crimson">
                             {b.bookingId} · {b.bookingStatus}
                           </button>
-                        ))}</div>
+                        ))}
+                          <Btn className="ml-auto" onClick={() => resetPassword(c.mobile)}>Reset password</Btn>
+                        </div>
                       </td></tr>
                     )}
                   </Fragment>
