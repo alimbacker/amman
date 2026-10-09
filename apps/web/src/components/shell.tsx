@@ -6,6 +6,7 @@ import { whatsappLink, type Lang } from '@temple/shared';
 import { usePrefs } from '@/lib/prefs';
 import { useTemple } from '@/lib/data';
 import { useAuth } from '@/lib/auth';
+import { userMobile } from '@/lib/firebase';
 import { IconCalendar, IconHelp, IconHome, IconPhone, IconSettings, IconTicket, IconWhatsApp, TempleMark } from './icons';
 
 export function Logo({ size = 44 }: { size?: number }) {
@@ -68,7 +69,7 @@ function Header() {
               {t(key)}
             </Link>
           ))}
-          <Link href="/settings" aria-label={t('settings')} title={user?.email ?? ''} className="flex items-center gap-2 rounded-full py-2 pl-3 pr-2.5 text-cream/90 hover:bg-cream/10">
+          <Link href="/settings" aria-label={t('settings')} title={userMobile(user)} className="flex items-center gap-2 rounded-full py-2 pl-3 pr-2.5 text-cream/90 hover:bg-cream/10">
             <span className="max-w-[9rem] truncate text-[0.95rem] font-semibold">{user?.displayName || t('account')}</span><IconSettings />
           </Link>
         </nav>
