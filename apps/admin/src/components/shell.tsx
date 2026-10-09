@@ -93,7 +93,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
     if (auth.status === 'admin' && isLogin) router.replace('/');
   }, [auth.status, isLogin, router]);
   // Housekeeping (expire unpaid holds, complete past bookings) runs when an admin opens the dashboard; throttled server-side.
-  useEffect(() => { if (auth.status === 'admin') callAdmin('maintenance', {}).catch(() => {}); }, [auth.status]);
+  useEffect(() => {
+    if (auth.status !== 'admin') return;
+    callAdmin('maintenance', {}).catch(() => {});
+    // Creates any missing Firestore composite indexes (once a day) so dashboard queries work without the Firebase CLI.
+    callAdmin('adminEnsureIndexes', {}).catch(() => {});
+  }, [auth.status]);
 
   // On /login, a signed-in user without the admin claim must see "Not authorised" instead of a form that silently does nothing.
   if (isLogin && auth.status !== 'denied') return <>{children}</>;
