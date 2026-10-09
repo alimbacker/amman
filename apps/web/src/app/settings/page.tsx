@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { usePrefs, type TextSize } from '@/lib/prefs';
 import { useAuth } from '@/lib/auth';
+import { userMobile } from '@/lib/firebase';
 import { PageTitle } from '@/components/shell';
 import { IconCheck, IconUser } from '@/components/icons';
 
@@ -36,7 +37,7 @@ export default function SettingsPage() {
             <span className="rounded-full bg-saffron-pale p-2 text-crimson"><IconUser /></span>
             <div className="min-w-0">
               <div className="truncate font-semibold text-ink">{user?.displayName || t('signedInAs')}</div>
-              <div className="truncate text-sm text-ink-soft">{user?.email}</div>
+              <div className="truncate text-sm text-ink-soft">{userMobile(user)}</div>
             </div>
           </div>
           <button className="btn-outline mt-4 w-full" disabled={busy} onClick={async () => { setBusy(true); await logout(); }}>
